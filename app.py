@@ -694,10 +694,13 @@ def consultar_estado_pedido(numero, numero_pedido):
         enviar_texto(numero, f"❌ No encontramos el pedido *{numero_pedido}*\n\nVerifica el número e intenta de nuevo.")
         return
     
-    # Formatear fecha
+    # Formatear fecha en hora Colombia
     fecha = pedido['fecha']
     if isinstance(fecha, datetime.datetime):
-        fecha_str = fecha.strftime("%d/%m/%Y %I:%M %p")
+        if fecha.tzinfo is None:
+            fecha = pytz.utc.localize(fecha)
+        fecha_colombia = fecha.astimezone(COLOMBIA_TZ)
+        fecha_str = fecha_colombia.strftime("%d/%m/%Y %I:%M %p")
     else:
         fecha_str = str(fecha)
     
