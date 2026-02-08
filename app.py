@@ -549,8 +549,9 @@ def enviar_metodos_pago(numero):
                     "rows": [
                         {"id": "pago_bancolombia", "title": "Bancolombia", "description": "Cuenta de ahorros"},
                         {"id": "pago_davivienda", "title": "Davivienda", "description": "Cuenta de ahorros"},
-                        {"id": "pago_nequi", "title": "Nequi", "description": "Transferencia Nequi"},
-                        {"id": "pago_daviplata", "title": "Daviplata", "description": "Transferencia Daviplata"}
+                        {"id": "pago_nequi", "title": "Nequi", "description": "Transferencia"},
+                        {"id": "pago_daviplata", "title": "Daviplata", "description": "Transferencia"},
+                        {"id": "pago_breb", "title": "Bre-B", "description": "Transferencia"}
                     ]
                 }]
             }
@@ -584,14 +585,21 @@ def enviar_datos_pago(numero, metodo):
         "pago_nequi": {
             "banco": "Nequi",
             "tipo": "Número Nequi",
-            "numero": "300 123 4567",
+            "numero": "313 853 5391",
             "titular": "Chocolates del Castillo",
             "cedula": ""
         },
         "pago_daviplata": {
             "banco": "Daviplata",
             "tipo": "Número Daviplata", 
-            "numero": "300 765 4321",
+            "numero": "313 853 5391",
+            "titular": "Chocolates del Castillo",
+            "cedula": ""
+        },
+        "pago_breb": {
+            "banco": "Bre-B",
+            "tipo": "Número Bre-B", 
+            "numero": "313 853 5391",
             "titular": "Chocolates del Castillo",
             "cedula": ""
         }
