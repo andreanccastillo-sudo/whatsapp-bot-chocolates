@@ -221,6 +221,10 @@ def buscar_producto(texto):
     """Busca un producto de forma flexible"""
     texto_limpio = texto.lower().strip()
     
+    # Si es solo un número, no es un producto
+    if texto_limpio.isdigit():
+        return None
+    
     # Buscar coincidencia exacta (con guion bajo o espacio)
     if texto_limpio in PRODUCTOS:
         return texto_limpio
@@ -230,14 +234,14 @@ def buscar_producto(texto):
     if texto_con_guion in PRODUCTOS:
         return texto_con_guion
     
-    # Buscar por nombre del producto
+    # Buscar por nombre del producto (coincidencia exacta)
     for pid, info in PRODUCTOS.items():
         if texto_limpio == info["nombre"].lower():
             return pid
     
-    # Buscar coincidencia parcial
+    # Buscar por código legible (sin guion bajo)
     for pid, info in PRODUCTOS.items():
-        if texto_limpio in pid or texto_limpio in info["nombre"].lower():
+        if texto_limpio == pid.replace("_", " "):
             return pid
     
     return None
@@ -706,21 +710,21 @@ def webhook():
                 mostrar_carrito(numero)
                 return "ok", 200
 
-            # 4. Elegir producto (búsqueda flexible)
-            producto_encontrado = buscar_producto(texto)
-            if producto_encontrado:
-                preguntar_cantidad(numero, producto_encontrado)
-                return "ok", 200
-
-            # 5. Ingresar cantidad esperada
-            elif numero in carritos and "esperando_producto" in carritos[numero]:
+            # 4. Ingresar cantidad esperada (ANTES de buscar producto)
+            if numero in carritos and "esperando_producto" in carritos[numero]:
                 try:
                     cantidad = int(texto)
                     if cantidad <= 0:
                         raise ValueError()
                     agregar_al_carrito(numero, cantidad)
                 except ValueError:
-                    enviar_texto(numero, "Por favor escribí un número válido de unidades.")
+                    enviar_texto(numero, "Por favor escribí un número válido mayor a 0.")
+                return "ok", 200
+
+            # 5. Elegir producto (búsqueda flexible)
+            producto_encontrado = buscar_producto(texto)
+            if producto_encontrado:
+                preguntar_cantidad(numero, producto_encontrado)
                 return "ok", 200
 
             # 6. Flujo de datos de envío
