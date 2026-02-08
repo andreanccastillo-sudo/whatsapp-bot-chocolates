@@ -10,10 +10,14 @@ from pymongo import MongoClient
 load_dotenv()
 
 # Conexión a MongoDB Atlas
+import certifi
 MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
+client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
 db = client["chocolates_bot"]
 pedidos_collection = db["pedidos"]
+
+# Almacenamiento temporal en memoria (backup)
+pedidos_memoria = {}
 
 app = Flask(__name__)
 
@@ -545,7 +549,12 @@ def procesar_comprobante(numero):
         "fecha": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         "wa_id": numero
     }
-    pedidos_collection.insert_one(pedido_data)
+    try:
+        pedidos_collection.insert_one(pedido_data)
+        print(f"Pedido guardado en MongoDB: {numero_pedido}")
+    except Exception as e:
+        print(f"Error MongoDB, guardando en memoria: {e}")
+        pedidos_memoria[numero_pedido] = pedido_data
     
     mensaje = "✅ *¡PEDIDO CONFIRMADO!*\n\n"
     mensaje += f"🔖 *Número de pedido:* {numero_pedido}\n"
@@ -574,7 +583,11 @@ def procesar_comprobante(numero):
         del carritos[numero]
 
 def consultar_estado_pedido(numero, numero_pedido):
-    pedido = pedidos_collection.find_one({"numero_pedido": numero_pedido.upper()})
+    try:
+        pedido = pedidos_collection.find_one({"numero_pedido": numero_pedido.upper()})
+    except Exception as e:
+        print(f"Error MongoDB consulta: {e}")
+        pedido = pedidos_memoria.get(numero_pedido.upper())
     
     if not pedido:
         enviar_texto(numero, f"❌ No encontramos el pedido *{numero_pedido}*\n\nVerifica el número e intenta de nuevo.")

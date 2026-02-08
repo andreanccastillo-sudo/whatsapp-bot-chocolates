@@ -2,5 +2,6 @@ flask
 python-dotenv
 requests
 gunicorn
-pymongo
+pymongo[srv]
 dnspython
+certifi
