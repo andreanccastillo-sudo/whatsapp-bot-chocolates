@@ -21,6 +21,9 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 pedidos_memoria = {}
 DB_DISPONIBLE = False
 
+# Usuarios que pidieron hablar con asesor (el bot no les responde)
+usuarios_con_asesor = set()
+
 def get_db_connection():
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -76,7 +79,7 @@ CATEGORIAS = {
     "navidad": {"nombre": "🎄 Navidad", "url": "https://www.chocolatesdelcastillo.com/navidad"},
 }
 
-# Productos organizados por categoría
+# Productos organizados por categoría (códigos simples)
 PRODUCTOS = {
     # === FRUCHETAS ===
     "bran": {"nombre": "Bran", "precio": 1900, "categoria": "fruchetas"},
@@ -86,67 +89,67 @@ PRODUCTOS = {
     "chillon": {"nombre": "Chillon", "precio": 5900, "categoria": "fruchetas"},
     "moguer": {"nombre": "Moguer", "precio": 12700, "categoria": "fruchetas"},
     "edimburgo": {"nombre": "Edimburgo", "precio": 13800, "categoria": "fruchetas"},
-    "san_pedro": {"nombre": "San Pedro", "precio": 17100, "categoria": "fruchetas"},
+    "sanpedro": {"nombre": "San Pedro", "precio": 17100, "categoria": "fruchetas"},
     "miramare": {"nombre": "Miramare", "precio": 31000, "categoria": "fruchetas"},
-    "celebra_comparte": {"nombre": "Celebra y Comparte", "precio": 46000, "categoria": "fruchetas"},
+    "comparte": {"nombre": "Celebra y Comparte", "precio": 46000, "categoria": "fruchetas"},
     
     # === PARA ELLAS ===
-    "suspiro_chocolate": {"nombre": "Suspiro de Chocolate", "precio": 28000, "categoria": "para_ellas"},
-    "caprichito_chocolate": {"nombre": "Caprichito de Chocolate", "precio": 32000, "categoria": "para_ellas"},
-    "estuche_bombones_x6": {"nombre": "Estuche Bombones x6", "precio": 35000, "categoria": "para_ellas"},
-    "bouquet_ilusion": {"nombre": "Bouquet Ilusion", "precio": 37000, "categoria": "para_ellas"},
-    "deleite_chocolate": {"nombre": "Deleite Chocolate", "precio": 52000, "categoria": "para_ellas"},
-    "bouquet_fantasia": {"nombre": "Bouquet Fantasia", "precio": 61000, "categoria": "para_ellas"},
-    "tentacion_chocolate": {"nombre": "Tentacion de Chocolate", "precio": 63000, "categoria": "para_ellas"},
-    "caja_12_fresas": {"nombre": "Caja 12 Fresas", "precio": 64000, "categoria": "para_ellas"},
-    "dulce_sorpresa": {"nombre": "Dulce Sorpresa", "precio": 69000, "categoria": "para_ellas"},
-    "cajita_feliz": {"nombre": "Cajita Feliz", "precio": 70000, "categoria": "para_ellas"},
-    "dulce_amor": {"nombre": "Dulce Amor", "precio": 74000, "categoria": "para_ellas"},
-    "dulce_corazon": {"nombre": "Dulce Corazon", "precio": 76000, "categoria": "para_ellas"},
-    "corazon_deluxe": {"nombre": "Corazon Deluxe", "precio": 85000, "categoria": "para_ellas"},
-    "caja_trufas_fresas": {"nombre": "Caja Trufas y Fresas", "precio": 85000, "categoria": "para_ellas"},
+    "suspiro": {"nombre": "Suspiro de Chocolate", "precio": 28000, "categoria": "para_ellas"},
+    "caprichito": {"nombre": "Caprichito de Chocolate", "precio": 32000, "categoria": "para_ellas"},
+    "bombones6": {"nombre": "Estuche Bombones x6", "precio": 35000, "categoria": "para_ellas"},
+    "ilusion": {"nombre": "Bouquet Ilusion", "precio": 37000, "categoria": "para_ellas"},
+    "deleite": {"nombre": "Deleite Chocolate", "precio": 52000, "categoria": "para_ellas"},
+    "fantasia": {"nombre": "Bouquet Fantasia", "precio": 61000, "categoria": "para_ellas"},
+    "tentacion": {"nombre": "Tentacion de Chocolate", "precio": 63000, "categoria": "para_ellas"},
+    "fresas12": {"nombre": "Caja 12 Fresas", "precio": 64000, "categoria": "para_ellas"},
+    "sorpresa": {"nombre": "Dulce Sorpresa", "precio": 69000, "categoria": "para_ellas"},
+    "feliz": {"nombre": "Cajita Feliz", "precio": 70000, "categoria": "para_ellas"},
+    "amor": {"nombre": "Dulce Amor", "precio": 74000, "categoria": "para_ellas"},
+    "corazon": {"nombre": "Dulce Corazon", "precio": 76000, "categoria": "para_ellas"},
+    "deluxe": {"nombre": "Corazon Deluxe", "precio": 85000, "categoria": "para_ellas"},
+    "trufas": {"nombre": "Caja Trufas y Fresas", "precio": 85000, "categoria": "para_ellas"},
     "celebracion": {"nombre": "Celebracion", "precio": 92000, "categoria": "para_ellas"},
-    "puro_amor": {"nombre": "Puro Amor", "precio": 98000, "categoria": "para_ellas"},
-    "sueno_imperial": {"nombre": "Sueño Imperial", "precio": 100000, "categoria": "para_ellas"},
-    "caja_imperial": {"nombre": "Caja Imperial", "precio": 131000, "categoria": "para_ellas"},
+    "puroamor": {"nombre": "Puro Amor", "precio": 98000, "categoria": "para_ellas"},
+    "imperial": {"nombre": "Sueño Imperial", "precio": 100000, "categoria": "para_ellas"},
+    "cajaimperial": {"nombre": "Caja Imperial", "precio": 131000, "categoria": "para_ellas"},
     
     # === PARA ELLOS ===
-    "caja_junior": {"nombre": "Caja Junior", "precio": 35000, "categoria": "para_ellos"},
-    "mr_genial": {"nombre": "Mr Genial", "precio": 37000, "categoria": "para_ellos"},
-    "mr_original": {"nombre": "Mr Original", "precio": 45000, "categoria": "para_ellos"},
-    "medio_metro_felicidad": {"nombre": "1/2 Metro de Felicidad", "precio": 45000, "categoria": "para_ellos"},
-    "metro_felicidad": {"nombre": "Metro de Felicidad", "precio": 74000, "categoria": "para_ellos"},
-    "mr_magico": {"nombre": "Mr Magico", "precio": 86000, "categoria": "para_ellos"},
-    "mr_increible": {"nombre": "Mr Increible", "precio": 98000, "categoria": "para_ellos"},
-    "mr_amoroso": {"nombre": "Mr Amoroso", "precio": 103000, "categoria": "para_ellos"},
-    "caja_aniversario": {"nombre": "Caja Aniversario", "precio": 109000, "categoria": "para_ellos"},
-    "caja_bombones_x30": {"nombre": "Caja Bombones x30", "precio": 134000, "categoria": "para_ellos"},
-    "mr_asombroso": {"nombre": "Mr Asombroso", "precio": 162000, "categoria": "para_ellos"},
+    "junior": {"nombre": "Caja Junior", "precio": 35000, "categoria": "para_ellos"},
+    "genial": {"nombre": "Mr Genial", "precio": 37000, "categoria": "para_ellos"},
+    "original": {"nombre": "Mr Original", "precio": 45000, "categoria": "para_ellos"},
+    "mediometro": {"nombre": "1/2 Metro de Felicidad", "precio": 45000, "categoria": "para_ellos"},
+    "metro": {"nombre": "Metro de Felicidad", "precio": 74000, "categoria": "para_ellos"},
+    "magico": {"nombre": "Mr Magico", "precio": 86000, "categoria": "para_ellos"},
+    "increible": {"nombre": "Mr Increible", "precio": 98000, "categoria": "para_ellos"},
+    "amoroso": {"nombre": "Mr Amoroso", "precio": 103000, "categoria": "para_ellos"},
+    "aniversario": {"nombre": "Caja Aniversario", "precio": 109000, "categoria": "para_ellos"},
+    "bombones30": {"nombre": "Caja Bombones x30", "precio": 134000, "categoria": "para_ellos"},
+    "asombroso": {"nombre": "Mr Asombroso", "precio": 162000, "categoria": "para_ellos"},
     
     # === CHOCO BOMBS ===
-    "chocobombs_x1": {"nombre": "Choco Bombs x1", "precio": 10500, "categoria": "chocobombs"},
-    "chocobombs_x2": {"nombre": "Choco Bombs x2", "precio": 22500, "categoria": "chocobombs"},
-    "chocobombs_x4": {"nombre": "Choco Bombs x4", "precio": 42000, "categoria": "chocobombs"},
-    "chocobombs_x6": {"nombre": "Choco Bombs x6", "precio": 65000, "categoria": "chocobombs"},
+    "bombs1": {"nombre": "Choco Bombs x1", "precio": 10500, "categoria": "chocobombs"},
+    "bombs2": {"nombre": "Choco Bombs x2", "precio": 22500, "categoria": "chocobombs"},
+    "bombs4": {"nombre": "Choco Bombs x4", "precio": 42000, "categoria": "chocobombs"},
+    "bombs6": {"nombre": "Choco Bombs x6", "precio": 65000, "categoria": "chocobombs"},
     
     # === DESAYUNOS ===
-    "desayuno_dejame_cuidarte": {"nombre": "Desayuno Dejame Cuidarte", "precio": 125000, "categoria": "desayunos"},
-    "desayuno_feliz_despertar": {"nombre": "Desayuno Feliz Despertar", "precio": 137000, "categoria": "desayunos"},
-    "desayuno_lleno_amor": {"nombre": "Desayuno Lleno de Amor", "precio": 154000, "categoria": "desayunos"},
-    "desayuno_boyacense": {"nombre": "Desayuno Boyacense", "precio": 156000, "categoria": "desayunos"},
-    "desayuno_dulce_despertar": {"nombre": "Desayuno Dulce Despertar", "precio": 156000, "categoria": "desayunos"},
+    "cuidarte": {"nombre": "Desayuno Dejame Cuidarte", "precio": 125000, "categoria": "desayunos"},
+    "despertar": {"nombre": "Desayuno Feliz Despertar", "precio": 137000, "categoria": "desayunos"},
+    "llenoamor": {"nombre": "Desayuno Lleno de Amor", "precio": 154000, "categoria": "desayunos"},
+    "boyacense": {"nombre": "Desayuno Boyacense", "precio": 156000, "categoria": "desayunos"},
+    "dulcedespertar": {"nombre": "Desayuno Dulce Despertar", "precio": 156000, "categoria": "desayunos"},
     
     # === FRESAS Y FLORES ===
-    "caja_celebracion": {"nombre": "Caja Celebracion", "precio": 165000, "categoria": "fresas_flores"},
-    "caja_deluxe": {"nombre": "Caja Deluxe", "precio": 193000, "categoria": "fresas_flores"},
+    "cajacelebracion": {"nombre": "Caja Celebracion", "precio": 165000, "categoria": "fresas_flores"},
+    "cajadeluxe": {"nombre": "Caja Deluxe", "precio": 193000, "categoria": "fresas_flores"},
     
     # === NAVIDAD ===
-    "chococuchara_navidad": {"nombre": "ChocoCuchara Navideña", "precio": 19000, "categoria": "navidad"},
-    "torta_envinada": {"nombre": "Torta Envinada", "precio": 45000, "categoria": "navidad"},
-    "caja_estrella_navidad": {"nombre": "Caja Estrella Navideña", "precio": 71000, "categoria": "navidad"},
-    "caja_alegria_navidad": {"nombre": "Caja Alegria Navideña", "precio": 74000, "categoria": "navidad"},
-    "caja_dulce_navidad": {"nombre": "Caja Dulce Navidad", "precio": 118000, "categoria": "navidad"},
-    "caja_arbol_navidad": {"nombre": "Caja Arbol Navidad", "precio": 129000, "categoria": "navidad"},
+    "cuchara": {"nombre": "ChocoCuchara Navideña", "precio": 19000, "categoria": "navidad"},
+    "torta": {"nombre": "Torta Envinada", "precio": 45000, "categoria": "navidad"},
+    "estrella": {"nombre": "Caja Estrella Navideña", "precio": 71000, "categoria": "navidad"},
+    "alegria": {"nombre": "Caja Alegria Navideña", "precio": 74000, "categoria": "navidad"},
+    "dulcenavidad": {"nombre": "Caja Dulce Navidad", "precio": 118000, "categoria": "navidad"},
+    "arbol": {"nombre": "Caja Arbol Navidad", "precio": 129000, "categoria": "navidad"},
 }
 # Carritos por usuario
 carritos = {}
@@ -261,36 +264,26 @@ def enviar_productos_categoria(numero, categoria_id):
     mensaje += "📝 *Indícanos cuál quieres adquirir:*\n\n"
     
     for pid, info in productos_cat.items():
-        codigo_legible = pid.replace("_", " ")
-        mensaje += f"• {info['nombre']} - ${info['precio']:,}\n  → escribe: *{codigo_legible}*\n\n"
-    mensaje += "📦 Escribí *ver carrito* para ver tu pedido\n📋 Escribí *categorias* para volver al menú"
+        mensaje += f"• {info['nombre']} - ${info['precio']:,}\n  → escribe: *{pid}*\n\n"
+    mensaje += "📦 Escribe *ver carrito* para ver tu pedido\n📋 Escribe *categorias* para volver al menú"
     enviar_texto(numero, mensaje)
 
 def buscar_producto(texto):
     """Busca un producto de forma flexible"""
-    texto_limpio = texto.lower().strip()
+    texto_limpio = texto.lower().strip().replace(" ", "")
     
-    # Si es solo un número, no es un producto
-    if texto_limpio.isdigit():
+    # Si es solo un número de 6 dígitos, es consulta de pedido
+    if texto_limpio.isdigit() and len(texto_limpio) == 6:
         return None
     
-    # Buscar coincidencia exacta (con guion bajo o espacio)
+    # Buscar coincidencia exacta
     if texto_limpio in PRODUCTOS:
         return texto_limpio
     
-    # Buscar reemplazando espacios por guion bajo
-    texto_con_guion = texto_limpio.replace(" ", "_")
-    if texto_con_guion in PRODUCTOS:
-        return texto_con_guion
-    
-    # Buscar por nombre del producto (coincidencia exacta)
+    # Buscar por nombre del producto
     for pid, info in PRODUCTOS.items():
-        if texto_limpio == info["nombre"].lower():
-            return pid
-    
-    # Buscar por código legible (sin guion bajo)
-    for pid, info in PRODUCTOS.items():
-        if texto_limpio == pid.replace("_", " "):
+        nombre_limpio = info["nombre"].lower().replace(" ", "")
+        if texto_limpio == nombre_limpio:
             return pid
     
     return None
@@ -301,7 +294,7 @@ def buscar_producto(texto):
 
 def preguntar_cantidad(numero, producto_id):
     nombre = PRODUCTOS[producto_id]["nombre"]
-    enviar_texto(numero, f"¿Cuántas unidades de '{nombre}' querés agregar al carrito?")
+    enviar_texto(numero, f"¿Cuántas unidades de '{nombre}' quieres agregar al carrito?")
     carritos[numero] = carritos.get(numero, {})
     carritos[numero]["esperando_producto"] = producto_id
 
@@ -746,6 +739,29 @@ def webhook():
             if numero == "+15556634041":
                 return "ok", 200
 
+            # Si el usuario está con asesor, el bot no responde
+            if numero in usuarios_con_asesor:
+                print(f"Usuario {numero} está con asesor, bot no responde")
+                return "ok", 200
+
+            # Detectar si quiere hablar con asesor (en cualquier momento)
+            texto_check = ""
+            if mensaje.get("type") == "text":
+                texto_check = mensaje.get("text", {}).get("body", "").strip().lower()
+            
+            palabras_asesor = ["asesor", "vendedor", "hablar con un vendedor", "quiero hablar con un vendedor", "persona", "humano", "agente"]
+            if any(palabra in texto_check for palabra in palabras_asesor):
+                usuarios_con_asesor.add(numero)
+                # Limpiar carrito si existe
+                if numero in carritos:
+                    del carritos[numero]
+                enviar_texto(numero, "🧑‍💼 *¡Entendido!*\n\nUn asesor se comunicará contigo pronto.\n\nEl bot ha sido pausado para que puedas hablar directamente con una persona.\n\n_Si deseas volver al bot, escribe *menu*_")
+                return "ok", 200
+
+            # Si escribe "menu", reactivar el bot
+            if texto_check == "menu" and numero in usuarios_con_asesor:
+                usuarios_con_asesor.remove(numero)
+
             # Procesar respuestas interactivas primero
             if mensaje.get("type") == "interactive":
                 interactive = mensaje["interactive"]
@@ -761,11 +777,14 @@ def webhook():
                 elif reply_id == "estado":
                     enviar_texto(numero, "📦 Escribe tu *número de pedido* (6 dígitos).\n\nEjemplo: *123456*")
                 elif reply_id == "asesor":
-                    enviar_texto(numero, "🗣️ Un asesor se pondrá en contacto contigo pronto.")
+                    usuarios_con_asesor.add(numero)
+                    if numero in carritos:
+                        del carritos[numero]
+                    enviar_texto(numero, "🧑‍💼 *¡Entendido!*\n\nUn asesor se comunicará contigo pronto.\n\nEl bot ha sido pausado para que puedas hablar directamente con una persona.\n\n_Si deseas volver al bot, escribe *menu*_")
                 elif reply_id == "ver_categorias":
                     enviar_lista_categorias(numero)
                 elif reply_id == "ya_se_que_pedir":
-                    enviar_texto(numero, "✅ Perfecto! Escribí el nombre del producto que querés (ej: *praga*, *chocobombs_x2*, *mr_genial*)\n\n📋 O escribí *categorias* para ver todas las opciones.")
+                    enviar_texto(numero, "✅ Perfecto! Escribe el nombre del producto que quieres (ej: *praga*, *bombs2*, *genial*)\n\n📋 O escribe *categorias* para ver todas las opciones.")
                 elif reply_id.startswith("cat_"):
                     categoria_id = reply_id.replace("cat_", "")
                     enviar_productos_categoria(numero, categoria_id)
@@ -801,7 +820,7 @@ def webhook():
                 elif reply_id.startswith("pago_"):
                     enviar_datos_pago(numero, reply_id)
                 else:
-                    enviar_texto(numero, "Opción no reconocida. Escribí *menu* para comenzar.")
+                    enviar_texto(numero, "Opción no reconocida. Escribe *menu* para comenzar.")
                 return "ok", 200
 
             # Detectar si es imagen o documento (comprobante de pago)
@@ -828,41 +847,13 @@ def webhook():
                 enviar_lista_categorias(numero)
                 return "ok", 200
 
-            # 3. Consultar estado de pedido (solo número de 6 dígitos)
-            elif texto.isdigit() and len(texto) == 6:
-                consultar_estado_pedido(numero, texto)
-                return "ok", 200
-            
-            # 3b. Consultar con "estado" + número
-            elif texto.startswith("estado "):
-                numero_pedido = texto.replace("estado ", "").strip()
-                consultar_estado_pedido(numero, numero_pedido)
-                return "ok", 200
-
-            # 4. Ver carrito
+            # 3. Ver carrito
             elif texto == "ver carrito":
                 mostrar_carrito(numero)
                 return "ok", 200
 
-            # 4. Ingresar cantidad esperada (ANTES de buscar producto)
-            if numero in carritos and "esperando_producto" in carritos[numero]:
-                try:
-                    cantidad = int(texto)
-                    if cantidad <= 0:
-                        raise ValueError()
-                    agregar_al_carrito(numero, cantidad)
-                except ValueError:
-                    enviar_texto(numero, "Por favor escribí un número válido mayor a 0.")
-                return "ok", 200
-
-            # 5. Elegir producto (búsqueda flexible)
-            producto_encontrado = buscar_producto(texto)
-            if producto_encontrado:
-                preguntar_cantidad(numero, producto_encontrado)
-                return "ok", 200
-
-            # 6. Flujo de datos de envío
-            elif numero in carritos and "esperando" in carritos[numero]:
+            # 4. Flujo de datos de envío (ANTES de consultar pedido para evitar confusión con direcciones numéricas)
+            if numero in carritos and "esperando" in carritos[numero]:
                 esperando = carritos[numero]["esperando"]
                 texto_original = mensaje.get("text", {}).get("body", "").strip()
                 
@@ -893,10 +884,37 @@ def webhook():
                 
                 return "ok", 200
 
-            # 7. Default
-            else:
-                enviar_texto(numero, "No entendí tu mensaje 🤔\n\nEscribí:\n• *menu* - para comenzar\n• *categorias* - para ver productos\n• *ver carrito* - para revisar tu pedido")
+            # 5. Ingresar cantidad esperada
+            if numero in carritos and "esperando_producto" in carritos[numero]:
+                try:
+                    cantidad = int(texto)
+                    if cantidad <= 0:
+                        raise ValueError()
+                    agregar_al_carrito(numero, cantidad)
+                except ValueError:
+                    enviar_texto(numero, "Por favor escribe un número válido mayor a 0.")
                 return "ok", 200
+
+            # 6. Consultar estado de pedido (solo número de 6 dígitos)
+            if texto.isdigit() and len(texto) == 6:
+                consultar_estado_pedido(numero, texto)
+                return "ok", 200
+            
+            # 6b. Consultar con "estado" + número
+            if texto.startswith("estado "):
+                numero_pedido = texto.replace("estado ", "").strip()
+                consultar_estado_pedido(numero, numero_pedido)
+                return "ok", 200
+
+            # 7. Elegir producto (búsqueda flexible)
+            producto_encontrado = buscar_producto(texto)
+            if producto_encontrado:
+                preguntar_cantidad(numero, producto_encontrado)
+                return "ok", 200
+
+            # 8. Default
+            enviar_texto(numero, "No entendí tu mensaje 🤔\n\nEscribe:\n• *menu* - para comenzar\n• *categorias* - para ver productos\n• *ver carrito* - para revisar tu pedido")
+            return "ok", 200
 
         except Exception as e:
             print("Error:", e)
