@@ -463,7 +463,9 @@ def enviar_metodos_pago(numero):
     requests.post(API_URL, headers=headers, json=data)
 
 def enviar_datos_pago(numero, metodo):
-    carrito = carritos.get(numero, {})
+    if numero not in carritos:
+        carritos[numero] = {}
+    carrito = carritos[numero]
     costo_envio = carrito.get("costo_envio", 0)
     total = carrito.get("subtotal", 0) + costo_envio
     
@@ -677,8 +679,10 @@ def webhook():
                     enviar_texto(numero, "Opción no reconocida. Escribí *menu* para comenzar.")
                 return "ok", 200
 
-            # Detectar si es imagen (comprobante de pago)
-            if mensaje.get("type") == "image":
+            # Detectar si es imagen o documento (comprobante de pago)
+            tipo_mensaje = mensaje.get("type")
+            if tipo_mensaje in ["image", "document"]:
+                print(f"Imagen/documento recibido. Carrito: {carritos.get(numero, {})}")
                 if numero in carritos and carritos[numero].get("esperando") == "comprobante":
                     procesar_comprobante(numero)
                     return "ok", 200
