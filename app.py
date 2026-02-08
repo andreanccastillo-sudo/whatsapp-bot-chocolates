@@ -5,30 +5,55 @@ from dotenv import load_dotenv
 import json
 import random
 import datetime
-from pymongo import MongoClient
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 load_dotenv()
 
-# Conexión a MongoDB Atlas
-import certifi
-MONGO_URI = os.getenv("MONGO_URI")
+# Conexión a Supabase (PostgreSQL)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 # Almacenamiento temporal en memoria (backup)
 pedidos_memoria = {}
+DB_DISPONIBLE = False
 
-# Intentar conectar a MongoDB
-MONGO_DISPONIBLE = False
-pedidos_collection = None
+def get_db_connection():
+    try:
+        conn = psycopg2.connect(DATABASE_URL)
+        return conn
+    except Exception as e:
+        print(f"Error conexión DB: {e}")
+        return None
 
+# Crear tabla si no existe
 try:
-    client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
-    client.admin.command('ping')
-    db = client["chocolates_bot"]
-    pedidos_collection = db["pedidos"]
-    MONGO_DISPONIBLE = True
-    print("MongoDB conectado exitosamente")
+    conn = get_db_connection()
+    if conn:
+        cur = conn.cursor()
+        cur.execute('''
+            CREATE TABLE IF NOT EXISTS pedidos (
+                id SERIAL PRIMARY KEY,
+                numero_pedido VARCHAR(50) UNIQUE,
+                cliente VARCHAR(255),
+                telefono VARCHAR(50),
+                direccion TEXT,
+                tipo_entrega VARCHAR(50),
+                items JSONB,
+                subtotal INTEGER,
+                costo_envio INTEGER,
+                total INTEGER,
+                estado VARCHAR(100),
+                fecha TIMESTAMP,
+                wa_id VARCHAR(50)
+            )
+        ''')
+        conn.commit()
+        cur.close()
+        conn.close()
+        DB_DISPONIBLE = True
+        print("Supabase conectado exitosamente")
 except Exception as e:
-    print(f"MongoDB no disponible, usando memoria: {e}")
+    print(f"Supabase no disponible, usando memoria: {e}")
 
 app = Flask(__name__)
 
@@ -567,12 +592,33 @@ def procesar_comprobante(numero):
         "fecha": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         "wa_id": numero
     }
-    if MONGO_DISPONIBLE:
+    if DB_DISPONIBLE:
         try:
-            pedidos_collection.insert_one(pedido_data)
-            print(f"Pedido guardado en MongoDB: {numero_pedido}")
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute('''
+                INSERT INTO pedidos (numero_pedido, cliente, telefono, direccion, tipo_entrega, items, subtotal, costo_envio, total, estado, fecha, wa_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (
+                numero_pedido,
+                pedido_data["cliente"],
+                pedido_data["telefono"],
+                pedido_data["direccion"],
+                pedido_data["tipo_entrega"],
+                json.dumps(pedido_data["items"]),
+                pedido_data["subtotal"],
+                pedido_data["costo_envio"],
+                pedido_data["total"],
+                pedido_data["estado"],
+                datetime.datetime.now(),
+                pedido_data["wa_id"]
+            ))
+            conn.commit()
+            cur.close()
+            conn.close()
+            print(f"Pedido guardado en Supabase: {numero_pedido}")
         except Exception as e:
-            print(f"Error MongoDB, guardando en memoria: {e}")
+            print(f"Error Supabase, guardando en memoria: {e}")
             pedidos_memoria[numero_pedido] = pedido_data
     else:
         pedidos_memoria[numero_pedido] = pedido_data
@@ -606,11 +652,16 @@ def procesar_comprobante(numero):
 
 def consultar_estado_pedido(numero, numero_pedido):
     pedido = None
-    if MONGO_DISPONIBLE:
+    if DB_DISPONIBLE:
         try:
-            pedido = pedidos_collection.find_one({"numero_pedido": numero_pedido.upper()})
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute('SELECT * FROM pedidos WHERE numero_pedido = %s', (numero_pedido.upper(),))
+            pedido = cur.fetchone()
+            cur.close()
+            conn.close()
         except Exception as e:
-            print(f"Error MongoDB consulta: {e}")
+            print(f"Error Supabase consulta: {e}")
     
     if not pedido:
         pedido = pedidos_memoria.get(numero_pedido.upper())
