@@ -130,8 +130,9 @@ def enviar_mensaje_con_botones(numero):
             }
         }
     }
-    response =requests.post(API_URL, headers=headers, json=data)
-    print(response.status_code)
+    response = requests.post(API_URL, headers=headers, json=data)
+    print("Status:", response.status_code)
+    print("Response:", response.text)
 
 def enviar_botones_post_compra(numero):
     headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
