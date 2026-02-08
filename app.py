@@ -211,9 +211,36 @@ def enviar_productos_categoria(numero, categoria_id):
     cat_nombre = CATEGORIAS.get(categoria_id, "Productos")
     mensaje = f"{cat_nombre}\n\n"
     for pid, info in productos_cat.items():
-        mensaje += f"• {info['nombre']} - ${info['precio']:,}\n  → escribe: *{pid}*\n\n"
+        # Mostrar nombre legible sin guion bajo
+        codigo_legible = pid.replace("_", " ")
+        mensaje += f"• {info['nombre']} - ${info['precio']:,}\n  → escribe: *{codigo_legible}*\n\n"
     mensaje += "📦 Escribí *ver carrito* para ver tu pedido\n📋 Escribí *categorias* para volver al menú"
     enviar_texto(numero, mensaje)
+
+def buscar_producto(texto):
+    """Busca un producto de forma flexible"""
+    texto_limpio = texto.lower().strip()
+    
+    # Buscar coincidencia exacta (con guion bajo o espacio)
+    if texto_limpio in PRODUCTOS:
+        return texto_limpio
+    
+    # Buscar reemplazando espacios por guion bajo
+    texto_con_guion = texto_limpio.replace(" ", "_")
+    if texto_con_guion in PRODUCTOS:
+        return texto_con_guion
+    
+    # Buscar por nombre del producto
+    for pid, info in PRODUCTOS.items():
+        if texto_limpio == info["nombre"].lower():
+            return pid
+    
+    # Buscar coincidencia parcial
+    for pid, info in PRODUCTOS.items():
+        if texto_limpio in pid or texto_limpio in info["nombre"].lower():
+            return pid
+    
+    return None
 
 
 
@@ -364,9 +391,43 @@ def enviar_botones_confirmar(numero):
             "body": {"text": "¿Los datos están correctos?"},
             "action": {
                 "buttons": [
-                    {"type": "reply", "reply": {"id": "confirmar_pedido", "title": "✅ Confirmar pedido"}},
+                    {"type": "reply", "reply": {"id": "confirmar_pedido", "title": "✅ Confirmar"}},
+                    {"type": "reply", "reply": {"id": "corregir_datos", "title": "✏️ Corregir"}},
                     {"type": "reply", "reply": {"id": "cancelar_pedido", "title": "❌ Cancelar"}}
                 ]
+            }
+        }
+    }
+    requests.post(API_URL, headers=headers, json=data)
+
+def enviar_opciones_corregir(numero):
+    carrito = carritos.get(numero, {})
+    tipo_entrega = carrito.get("tipo_entrega", "domicilio")
+    
+    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+    
+    if tipo_entrega == "domicilio":
+        rows = [
+            {"id": "corregir_nombre", "title": "👤 Nombre"},
+            {"id": "corregir_direccion", "title": "📍 Dirección"},
+            {"id": "corregir_telefono", "title": "📱 Teléfono"}
+        ]
+    else:
+        rows = [
+            {"id": "corregir_nombre", "title": "👤 Nombre"},
+            {"id": "corregir_telefono", "title": "📱 Teléfono"}
+        ]
+    
+    data = {
+        "messaging_product": "whatsapp",
+        "to": numero,
+        "type": "interactive",
+        "interactive": {
+            "type": "list",
+            "body": {"text": "✏️ *¿Qué dato deseas corregir?*"},
+            "action": {
+                "button": "Seleccionar",
+                "sections": [{"title": "Datos", "rows": rows}]
             }
         }
     }
@@ -591,6 +652,17 @@ def webhook():
                     carritos[numero]["esperando"] = "nombre"
                 elif reply_id == "confirmar_pedido":
                     enviar_metodos_pago(numero)
+                elif reply_id == "corregir_datos":
+                    enviar_opciones_corregir(numero)
+                elif reply_id == "corregir_nombre":
+                    enviar_texto(numero, "📝 Escribe tu *nombre completo* nuevamente:")
+                    carritos[numero]["esperando"] = "nombre_correccion"
+                elif reply_id == "corregir_direccion":
+                    enviar_texto(numero, "📍 Escribe tu *dirección completa* nuevamente:")
+                    carritos[numero]["esperando"] = "direccion_correccion"
+                elif reply_id == "corregir_telefono":
+                    enviar_texto(numero, "📱 Escribe tu *número de teléfono* nuevamente:")
+                    carritos[numero]["esperando"] = "telefono_correccion"
                 elif reply_id == "cancelar_pedido":
                     if numero in carritos:
                         del carritos[numero]
@@ -600,6 +672,15 @@ def webhook():
                 else:
                     enviar_texto(numero, "Opción no reconocida. Escribí *menu* para comenzar.")
                 return "ok", 200
+
+            # Detectar si es imagen (comprobante de pago)
+            if mensaje.get("type") == "image":
+                if numero in carritos and carritos[numero].get("esperando") == "comprobante":
+                    procesar_comprobante(numero)
+                    return "ok", 200
+                else:
+                    enviar_texto(numero, "📷 Recibimos tu imagen. Si es un comprobante de pago, primero debes completar un pedido.\n\nEscribe *menu* para comenzar.")
+                    return "ok", 200
 
             # Luego procesamos texto plano
             texto = mensaje.get("text", {}).get("body", "").strip().lower()
@@ -625,9 +706,10 @@ def webhook():
                 mostrar_carrito(numero)
                 return "ok", 200
 
-            # 4. Elegir producto
-            elif texto in PRODUCTOS:
-                preguntar_cantidad(numero, texto)
+            # 4. Elegir producto (búsqueda flexible)
+            producto_encontrado = buscar_producto(texto)
+            if producto_encontrado:
+                preguntar_cantidad(numero, producto_encontrado)
                 return "ok", 200
 
             # 5. Ingresar cantidad esperada
@@ -644,15 +726,28 @@ def webhook():
             # 6. Flujo de datos de envío
             elif numero in carritos and "esperando" in carritos[numero]:
                 esperando = carritos[numero]["esperando"]
+                texto_original = mensaje.get("text", {}).get("body", "").strip()
                 
                 if esperando == "nombre":
-                    carritos[numero]["nombre"] = mensaje.get("text", {}).get("body", "").strip()
+                    carritos[numero]["nombre"] = texto_original
                     pedir_direccion(numero)
                 elif esperando == "direccion":
-                    carritos[numero]["direccion"] = mensaje.get("text", {}).get("body", "").strip()
+                    carritos[numero]["direccion"] = texto_original
                     pedir_telefono(numero)
                 elif esperando == "telefono":
-                    carritos[numero]["telefono"] = mensaje.get("text", {}).get("body", "").strip()
+                    carritos[numero]["telefono"] = texto_original
+                    del carritos[numero]["esperando"]
+                    mostrar_resumen_final(numero)
+                elif esperando == "nombre_correccion":
+                    carritos[numero]["nombre"] = texto_original
+                    del carritos[numero]["esperando"]
+                    mostrar_resumen_final(numero)
+                elif esperando == "direccion_correccion":
+                    carritos[numero]["direccion"] = texto_original
+                    del carritos[numero]["esperando"]
+                    mostrar_resumen_final(numero)
+                elif esperando == "telefono_correccion":
+                    carritos[numero]["telefono"] = texto_original
                     del carritos[numero]["esperando"]
                     mostrar_resumen_final(numero)
                 elif esperando == "comprobante":
