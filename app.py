@@ -176,7 +176,7 @@ def enviar_mensaje_con_botones(numero):
         "type": "interactive",
         "interactive": {
             "type": "button",
-            "body": {"text": "🍫 *Bienvenido a Chocolates del Castillo* 🍫\n¿Qué quieres hacer hoy?"},
+            "body": {"text": "🍫 *Bienvenido a Chocolates del Castillo* 🍫\n\n¿Qué quieres hacer hoy?\n\n_En cualquier momento puedes escribir *asesor* o *vendedor* si deseas hablar con una persona._"},
             "action": {
                 "buttons": [
                     {"type": "reply", "reply": {"id": "comprar", "title": "🛍 Comprar"}},
@@ -250,6 +250,50 @@ def enviar_lista_categorias(numero):
     print("Lista categorías:", response.status_code, response.text)
 
 def enviar_productos_categoria(numero, categoria_id):
+    """Envía solo el link de la categoría y luego botones de opciones"""
+    cat_info = CATEGORIAS.get(categoria_id, {"nombre": "Productos", "url": ""})
+    cat_nombre = cat_info["nombre"]
+    cat_url = cat_info["url"]
+    
+    # Guardar categoría actual
+    carritos.setdefault(numero, {})
+    carritos[numero]["categoria_actual"] = categoria_id
+    
+    mensaje = f"{cat_nombre}\n\n"
+    mensaje += f"🔗 *Mira los productos aquí:*\n{cat_url}"
+    
+    enviar_texto(numero, mensaje)
+    
+    # Enviar botones de opciones
+    enviar_opciones_categoria(numero)
+
+def enviar_opciones_categoria(numero):
+    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+    data = {
+        "messaging_product": "whatsapp",
+        "to": numero,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {"text": "¿Qué deseas hacer?"},
+            "action": {
+                "buttons": [
+                    {"type": "reply", "reply": {"id": "hacer_pedido", "title": "🛍 Hacer pedido"}},
+                    {"type": "reply", "reply": {"id": "ver_otra_categoria", "title": "📋 Otra categoría"}},
+                    {"type": "reply", "reply": {"id": "asesor", "title": "🗣️ Hablar con asesor"}}
+                ]
+            }
+        }
+    }
+    requests.post(API_URL, headers=headers, json=data)
+
+def enviar_lista_productos_para_pedir(numero):
+    """Envía la lista numerada de productos de la categoría actual"""
+    categoria_id = carritos.get(numero, {}).get("categoria_actual")
+    if not categoria_id:
+        enviar_lista_categorias(numero)
+        return
+    
     productos_cat = {pid: p for pid, p in PRODUCTOS.items() if p.get("categoria") == categoria_id}
     if not productos_cat:
         enviar_texto(numero, "No hay productos en esta categoría.")
@@ -257,15 +301,17 @@ def enviar_productos_categoria(numero, categoria_id):
     
     cat_info = CATEGORIAS.get(categoria_id, {"nombre": "Productos", "url": ""})
     cat_nombre = cat_info["nombre"]
-    cat_url = cat_info["url"]
     
-    mensaje = f"{cat_nombre}\n\n"
-    mensaje += f"🔗 *Ver detalle de productos:*\n{cat_url}\n\n"
-    mensaje += "📝 *Indícanos cuál quieres adquirir:*\n\n"
+    # Guardar lista de productos para referencia por número
+    carritos[numero]["productos_lista"] = list(productos_cat.keys())
     
-    for pid, info in productos_cat.items():
-        mensaje += f"• {info['nombre']} - ${info['precio']:,}\n  → escribe: *{pid}*\n\n"
-    mensaje += "📦 Escribe *ver carrito* para ver tu pedido\n📋 Escribe *categorias* para volver al menú"
+    mensaje = f"📝 *{cat_nombre} - Lista de productos:*\n\n"
+    
+    for i, (pid, info) in enumerate(productos_cat.items(), 1):
+        mensaje += f"*{i}.* {info['nombre']} - ${info['precio']:,}\n"
+    
+    mensaje += "\n_Escribe el *número* del producto que quieres pedir._"
+    
     enviar_texto(numero, mensaje)
 
 def buscar_producto(texto):
@@ -783,8 +829,14 @@ def webhook():
                     enviar_texto(numero, "🧑‍💼 *¡Entendido!*\n\nUn asesor se comunicará contigo pronto.\n\nEl bot ha sido pausado para que puedas hablar directamente con una persona.\n\n_Si deseas volver al bot, escribe *menu*_")
                 elif reply_id == "ver_categorias":
                     enviar_lista_categorias(numero)
+                elif reply_id == "ver_otra_categoria":
+                    enviar_lista_categorias(numero)
+                elif reply_id == "ver_carrito_btn":
+                    mostrar_carrito(numero)
+                elif reply_id == "hacer_pedido":
+                    enviar_lista_productos_para_pedir(numero)
                 elif reply_id == "ya_se_que_pedir":
-                    enviar_texto(numero, "✅ Perfecto! Escribe el nombre del producto que quieres (ej: *praga*, *bombs2*, *genial*)\n\n📋 O escribe *categorias* para ver todas las opciones.")
+                    enviar_lista_categorias(numero)
                 elif reply_id.startswith("cat_"):
                     categoria_id = reply_id.replace("cat_", "")
                     enviar_productos_categoria(numero, categoria_id)
@@ -895,6 +947,19 @@ def webhook():
                 except ValueError:
                     enviar_texto(numero, "Por favor escribe un número válido mayor a 0.")
                 return "ok", 200
+
+            # 5b. Seleccionar producto por número de la lista
+            if numero in carritos and "productos_lista" in carritos[numero]:
+                if texto.isdigit():
+                    indice = int(texto) - 1
+                    productos_lista = carritos[numero]["productos_lista"]
+                    if 0 <= indice < len(productos_lista):
+                        producto_id = productos_lista[indice]
+                        preguntar_cantidad(numero, producto_id)
+                        return "ok", 200
+                    else:
+                        enviar_texto(numero, f"❌ Número inválido. Escribe un número del 1 al {len(productos_lista)}.")
+                        return "ok", 200
 
             # 6. Consultar estado de pedido (solo número de 6 dígitos)
             if texto.isdigit() and len(texto) == 6:
