@@ -226,6 +226,27 @@ def agregar_al_carrito(numero, cantidad):
     carritos[numero].setdefault("items", []).append(pedido)
     del carritos[numero]["esperando_producto"]
     enviar_texto(numero, f"✅ Se agregaron {cantidad} x {producto['nombre']} al carrito.")
+    enviar_botones_continuar(numero)
+
+def enviar_botones_continuar(numero):
+    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+    data = {
+        "messaging_product": "whatsapp",
+        "to": numero,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {"text": "¿Qué deseas hacer ahora?"},
+            "action": {
+                "buttons": [
+                    {"type": "reply", "reply": {"id": "ver_categorias", "title": "🛒 Seguir comprando"}},
+                    {"type": "reply", "reply": {"id": "finalizar", "title": "💳 Finalizar pedido"}}
+                ]
+            }
+        }
+    }
+    response = requests.post(API_URL, headers=headers, json=data)
+    print("Botones continuar:", response.status_code)
 
 def mostrar_menu(numero):
     enviar_lista_categorias(numero)
@@ -238,23 +259,214 @@ def mostrar_carrito(numero):
         enviar_texto(numero, "🧺 Tu carrito está vacío.")
         return
 
-    mensaje = "🧺 Tu pedido:\n"
+    mensaje = "🧺 *Tu pedido:*\n\n"
     total = 0
     for item in items:
         subtotal = item["precio"] * item["cantidad"]
-        mensaje += f"{item['cantidad']} x {item['producto']} → ${subtotal:,.0f}\n"
+        mensaje += f"• {item['cantidad']} x {item['producto']} → ${subtotal:,.0f}\n"
         total += subtotal
 
-    mensaje += f"\n🧾 Subtotal: ${total:,.0f}"
-
-    # Guardamos el estado de espera por la ubicación
-    carritos[numero]["esperando_domicilio"] = True
-
-    mensaje += (
-        "\n\n📍 ¿Estás en Tunja? (responde *sí* o *no*)"
-    )
-
+    mensaje += f"\n🧾 *Subtotal:* ${total:,.0f}"
+    
+    carritos[numero]["subtotal"] = total
+    
     enviar_texto(numero, mensaje)
+    enviar_opciones_entrega(numero)
+
+def enviar_opciones_entrega(numero):
+    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+    data = {
+        "messaging_product": "whatsapp",
+        "to": numero,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {"text": "🚚 *¿Cómo deseas recibir tu pedido?*\n\n• Domicilio en Tunja: +$7,000\n• Recoger en tienda: Gratis"},
+            "action": {
+                "buttons": [
+                    {"type": "reply", "reply": {"id": "entrega_domicilio", "title": "🏠 Domicilio"}},
+                    {"type": "reply", "reply": {"id": "entrega_recoger", "title": "🏪 Recoger en tienda"}}
+                ]
+            }
+        }
+    }
+    requests.post(API_URL, headers=headers, json=data)
+
+def pedir_direccion(numero):
+    if carritos[numero].get("tipo_entrega") == "domicilio":
+        enviar_texto(numero, "📍 Ahora escribe tu *dirección completa* en Tunja:")
+        carritos[numero]["esperando"] = "direccion"
+    else:
+        pedir_telefono(numero)
+
+def pedir_telefono(numero):
+    enviar_texto(numero, "📱 Escribe tu *número de teléfono* de contacto:")
+    carritos[numero]["esperando"] = "telefono"
+
+def mostrar_resumen_final(numero):
+    carrito = carritos[numero]
+    items = carrito.get("items", [])
+    costo_envio = carrito.get("costo_envio", 0)
+    tipo_entrega = carrito.get("tipo_entrega", "domicilio")
+    
+    mensaje = "📋 *RESUMEN DE TU PEDIDO*\n"
+    mensaje += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    mensaje += "*Productos:*\n"
+    total = 0
+    for item in items:
+        subtotal = item["precio"] * item["cantidad"]
+        mensaje += f"• {item['cantidad']} x {item['producto']} - ${subtotal:,.0f}\n"
+        total += subtotal
+    
+    mensaje += f"\n━━━━━━━━━━━━━━━━━━━━\n"
+    mensaje += f"🧾 Subtotal: ${total:,.0f}\n"
+    
+    if tipo_entrega == "domicilio":
+        mensaje += f"🚚 Domicilio: $7,000\n"
+    else:
+        mensaje += f"🏪 Recoger en tienda: Gratis\n"
+    
+    mensaje += f"💰 *TOTAL: ${total + costo_envio:,.0f}*\n"
+    mensaje += f"━━━━━━━━━━━━━━━━━━━━\n\n"
+    
+    if tipo_entrega == "domicilio":
+        mensaje += "*Datos de envío:*\n"
+        mensaje += f"👤 {carrito.get('nombre', '')}\n"
+        mensaje += f"📍 {carrito.get('direccion', '')}\n"
+        mensaje += f"📱 {carrito.get('telefono', '')}\n"
+    else:
+        mensaje += "*Datos de contacto:*\n"
+        mensaje += f"👤 {carrito.get('nombre', '')}\n"
+        mensaje += f"📱 {carrito.get('telefono', '')}\n"
+        mensaje += f"\n🏪 *Recoger en:* Cra 9 #24-20, Las Nieves, Tunja\n"
+    
+    enviar_texto(numero, mensaje)
+    enviar_botones_confirmar(numero)
+
+def enviar_botones_confirmar(numero):
+    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+    data = {
+        "messaging_product": "whatsapp",
+        "to": numero,
+        "type": "interactive",
+        "interactive": {
+            "type": "button",
+            "body": {"text": "¿Los datos están correctos?"},
+            "action": {
+                "buttons": [
+                    {"type": "reply", "reply": {"id": "confirmar_pedido", "title": "✅ Confirmar pedido"}},
+                    {"type": "reply", "reply": {"id": "cancelar_pedido", "title": "❌ Cancelar"}}
+                ]
+            }
+        }
+    }
+    requests.post(API_URL, headers=headers, json=data)
+
+def enviar_metodos_pago(numero):
+    headers = {"Authorization": f"Bearer {TOKEN}", "Content-Type": "application/json"}
+    data = {
+        "messaging_product": "whatsapp",
+        "to": numero,
+        "type": "interactive",
+        "interactive": {
+            "type": "list",
+            "body": {"text": "💳 *Selecciona tu método de pago:*\n\nElige cómo deseas realizar el pago de tu pedido."},
+            "action": {
+                "button": "Ver métodos de pago",
+                "sections": [{
+                    "title": "Métodos de pago",
+                    "rows": [
+                        {"id": "pago_bancolombia", "title": "Bancolombia", "description": "Cuenta de ahorros"},
+                        {"id": "pago_davivienda", "title": "Davivienda", "description": "Cuenta de ahorros"},
+                        {"id": "pago_nequi", "title": "Nequi", "description": "Transferencia Nequi"},
+                        {"id": "pago_daviplata", "title": "Daviplata", "description": "Transferencia Daviplata"}
+                    ]
+                }]
+            }
+        }
+    }
+    requests.post(API_URL, headers=headers, json=data)
+
+def enviar_datos_pago(numero, metodo):
+    carrito = carritos.get(numero, {})
+    costo_envio = carrito.get("costo_envio", 0)
+    total = carrito.get("subtotal", 0) + costo_envio
+    
+    datos_pago = {
+        "pago_bancolombia": {
+            "banco": "Bancolombia",
+            "tipo": "Cuenta de Ahorros",
+            "numero": "123-456789-00",
+            "titular": "Chocolates del Castillo SAS",
+            "cedula": "900.123.456-7"
+        },
+        "pago_davivienda": {
+            "banco": "Davivienda", 
+            "tipo": "Cuenta de Ahorros",
+            "numero": "456-789012-34",
+            "titular": "Chocolates del Castillo SAS",
+            "cedula": "900.123.456-7"
+        },
+        "pago_nequi": {
+            "banco": "Nequi",
+            "tipo": "Número Nequi",
+            "numero": "300 123 4567",
+            "titular": "Chocolates del Castillo",
+            "cedula": ""
+        },
+        "pago_daviplata": {
+            "banco": "Daviplata",
+            "tipo": "Número Daviplata", 
+            "numero": "300 765 4321",
+            "titular": "Chocolates del Castillo",
+            "cedula": ""
+        }
+    }
+    
+    pago = datos_pago.get(metodo, datos_pago["pago_bancolombia"])
+    
+    mensaje = f"🏦 *DATOS PARA PAGO*\n"
+    mensaje += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    mensaje += f"💰 *Total a pagar: ${total:,.0f}*\n\n"
+    mensaje += f"🏛️ *{pago['banco']}*\n"
+    mensaje += f"📋 {pago['tipo']}\n"
+    mensaje += f"🔢 *{pago['numero']}*\n"
+    mensaje += f"👤 {pago['titular']}\n"
+    if pago['cedula']:
+        mensaje += f"🆔 NIT: {pago['cedula']}\n"
+    mensaje += "\n━━━━━━━━━━━━━━━━━━━━\n\n"
+    mensaje += "📸 *Envía el comprobante de pago* a este chat para confirmar tu pedido.\n\n"
+    mensaje += "⏰ Tu pedido será procesado una vez confirmemos el pago."
+    
+    enviar_texto(numero, mensaje)
+    carritos[numero]["esperando"] = "comprobante"
+
+def procesar_comprobante(numero):
+    carrito = carritos.get(numero, {})
+    tipo_entrega = carrito.get("tipo_entrega", "domicilio")
+    
+    mensaje = "✅ *¡PEDIDO CONFIRMADO!*\n\n"
+    mensaje += "Hemos recibido tu comprobante de pago.\n\n"
+    
+    if tipo_entrega == "domicilio":
+        mensaje += "📦 Tu pedido será preparado y enviado a:\n"
+        mensaje += f"📍 {carrito.get('direccion', '')}\n\n"
+    else:
+        mensaje += "📦 Tu pedido será preparado para recoger en:\n"
+        mensaje += "🏪 Cra 9 #24-20, Las Nieves, Tunja\n"
+        mensaje += "⏰ Te avisaremos cuando esté listo\n\n"
+    
+    mensaje += "Te contactaremos al número:\n"
+    mensaje += f"📱 {carrito.get('telefono', '')}\n\n"
+    mensaje += "¡Gracias por tu compra! 🍫\n"
+    mensaje += "_Chocolates del Castillo_"
+    
+    enviar_texto(numero, mensaje)
+    
+    # Limpiar carrito
+    if numero in carritos:
+        del carritos[numero]
 
 
 
@@ -304,6 +516,26 @@ def webhook():
                 elif reply_id.startswith("cat_"):
                     categoria_id = reply_id.replace("cat_", "")
                     enviar_productos_categoria(numero, categoria_id)
+                elif reply_id == "finalizar":
+                    mostrar_carrito(numero)
+                elif reply_id == "entrega_domicilio":
+                    carritos[numero]["tipo_entrega"] = "domicilio"
+                    carritos[numero]["costo_envio"] = 7000
+                    enviar_texto(numero, "🏠 *Entrega a domicilio en Tunja*\n\n📝 Por favor escribe tu *nombre completo*:")
+                    carritos[numero]["esperando"] = "nombre"
+                elif reply_id == "entrega_recoger":
+                    carritos[numero]["tipo_entrega"] = "recoger"
+                    carritos[numero]["costo_envio"] = 0
+                    enviar_texto(numero, "🏪 *Recoger en tienda*\n\n📍 Dirección: Cra 9 #24-20, Las Nieves, Tunja\n⏰ Horario: Lunes a Sábado 9am - 7pm\n\n📝 Por favor escribe tu *nombre completo*:")
+                    carritos[numero]["esperando"] = "nombre"
+                elif reply_id == "confirmar_pedido":
+                    enviar_metodos_pago(numero)
+                elif reply_id == "cancelar_pedido":
+                    if numero in carritos:
+                        del carritos[numero]
+                    enviar_texto(numero, "❌ Pedido cancelado. Escribe *menu* para comenzar de nuevo.")
+                elif reply_id.startswith("pago_"):
+                    enviar_datos_pago(numero, reply_id)
                 else:
                     enviar_texto(numero, "Opción no reconocida. Escribí *menu* para comenzar.")
                 return "ok", 200
@@ -342,30 +574,23 @@ def webhook():
                     enviar_texto(numero, "Por favor escribí un número válido de unidades.")
                 return "ok", 200
 
-            # 6. Confirmar domicilio
-            elif numero in carritos and "esperando_domicilio" in carritos[numero]:
-                if texto in ["sí", "si"]:
-                    carrito = carritos[numero]
-                    total = sum(item["precio"] * item["cantidad"] for item in carrito["items"])
-                    total_final = total + 7000
-                    mensaje = (
-                        f"🧾 Subtotal: ${total:,.0f}\n"
-                        f"🚚 Domicilio en Tunja: $7.000\n"
-                        f"💰 Total final: ${total_final:,.0f}\n\n"
-                        "💬 Envíanos el comprobante de tu pago:\n"
-                        "Banco: Bancolombia\n"
-                        "Tipo Cuenta: Ahorros\n"
-                        "No. Cuenta: 91246075366\n"
-                        "Titular: Edwin Rojas\n"
-                        "C.C No. 74.245.220."
-                    )
-                    enviar_texto(numero, mensaje)
-                elif texto == "no":
-                    mostrar_carrito(numero)
-                else:
-                    enviar_texto(numero, "Por favor respondé *sí* o *no* para aplicar domicilio.")
+            # 6. Flujo de datos de envío
+            elif numero in carritos and "esperando" in carritos[numero]:
+                esperando = carritos[numero]["esperando"]
                 
-                del carritos[numero]["esperando_domicilio"]
+                if esperando == "nombre":
+                    carritos[numero]["nombre"] = mensaje.get("text", {}).get("body", "").strip()
+                    pedir_direccion(numero)
+                elif esperando == "direccion":
+                    carritos[numero]["direccion"] = mensaje.get("text", {}).get("body", "").strip()
+                    pedir_telefono(numero)
+                elif esperando == "telefono":
+                    carritos[numero]["telefono"] = mensaje.get("text", {}).get("body", "").strip()
+                    del carritos[numero]["esperando"]
+                    mostrar_resumen_final(numero)
+                elif esperando == "comprobante":
+                    procesar_comprobante(numero)
+                
                 return "ok", 200
 
             # 7. Default
