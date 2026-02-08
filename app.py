@@ -7,8 +7,12 @@ import random
 import datetime
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import pytz
 
 load_dotenv()
+
+# Zona horaria Colombia
+COLOMBIA_TZ = pytz.timezone('America/Bogota')
 
 # Conexión a Supabase (PostgreSQL)
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -43,7 +47,7 @@ try:
                 costo_envio INTEGER,
                 total INTEGER,
                 estado VARCHAR(100),
-                fecha TIMESTAMP,
+                fecha TIMESTAMP WITH TIME ZONE,
                 wa_id VARCHAR(50)
             )
         ''')
@@ -566,9 +570,25 @@ def enviar_datos_pago(numero, metodo):
     print(f"enviar_datos_pago - Carrito despues: {carritos.get(numero, {})}")
 
 def generar_numero_pedido():
-    fecha = datetime.datetime.now().strftime("%d%m")
-    aleatorio = random.randint(1000, 9999)
-    return f"CHC-{fecha}-{aleatorio}"
+    """Genera número único de 6 dígitos verificando en la base de datos"""
+    while True:
+        numero = str(random.randint(100000, 999999))
+        # Verificar que no exista
+        if DB_DISPONIBLE:
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute('SELECT 1 FROM pedidos WHERE numero_pedido = %s', (numero,))
+                existe = cur.fetchone()
+                cur.close()
+                conn.close()
+                if not existe:
+                    return numero
+            except:
+                return numero
+        else:
+            if numero not in pedidos_memoria:
+                return numero
 
 def procesar_comprobante(numero):
     carrito = carritos.get(numero, {})
@@ -596,21 +616,22 @@ def procesar_comprobante(numero):
         try:
             conn = get_db_connection()
             cur = conn.cursor()
+            fecha_colombia = datetime.datetime.now(COLOMBIA_TZ)
             cur.execute('''
                 INSERT INTO pedidos (numero_pedido, cliente, telefono, direccion, tipo_entrega, items, subtotal, costo_envio, total, estado, fecha, wa_id)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ''', (
                 numero_pedido,
-                pedido_data["cliente"],
+                pedido_data["cliente"].upper(),
                 pedido_data["telefono"],
-                pedido_data["direccion"],
-                pedido_data["tipo_entrega"],
+                pedido_data["direccion"].upper(),
+                pedido_data["tipo_entrega"].upper(),
                 json.dumps(pedido_data["items"]),
                 pedido_data["subtotal"],
                 pedido_data["costo_envio"],
                 pedido_data["total"],
-                pedido_data["estado"],
-                datetime.datetime.now(),
+                pedido_data["estado"].upper(),
+                fecha_colombia,
                 pedido_data["wa_id"]
             ))
             conn.commit()
@@ -640,7 +661,7 @@ def procesar_comprobante(numero):
     mensaje += "Te contactaremos al número:\n"
     mensaje += f"📱 {carrito.get('telefono', '')}\n\n"
     mensaje += "📍 *Para consultar tu pedido* escribe:\n"
-    mensaje += f"*estado {numero_pedido}*\n\n"
+    mensaje += f"*{numero_pedido}*\n\n"
     mensaje += "¡Gracias por tu compra! 🍫\n"
     mensaje += "_Chocolates del Castillo_"
     
@@ -673,14 +694,22 @@ def consultar_estado_pedido(numero, numero_pedido):
         enviar_texto(numero, f"❌ No encontramos el pedido *{numero_pedido}*\n\nVerifica el número e intenta de nuevo.")
         return
     
+    # Formatear fecha
+    fecha = pedido['fecha']
+    if isinstance(fecha, datetime.datetime):
+        fecha_str = fecha.strftime("%d/%m/%Y %I:%M %p")
+    else:
+        fecha_str = str(fecha)
+    
     mensaje = f"📋 *ESTADO DEL PEDIDO*\n"
     mensaje += "━━━━━━━━━━━━━━━━━━━━\n\n"
     mensaje += f"🔖 *Pedido:* {pedido['numero_pedido']}\n"
-    mensaje += f"📅 *Fecha:* {pedido['fecha']}\n"
+    mensaje += f"📅 *Fecha:* {fecha_str}\n"
     mensaje += f"👤 *Cliente:* {pedido['cliente']}\n\n"
     mensaje += f"📦 *Estado:* {pedido['estado']}\n\n"
     
-    if pedido['tipo_entrega'] == "domicilio":
+    tipo_entrega = pedido['tipo_entrega'].lower() if pedido['tipo_entrega'] else ''
+    if tipo_entrega == "domicilio":
         mensaje += f"🚚 *Envío a:* {pedido['direccion']}\n"
     else:
         mensaje += "🏪 *Recoger en:* Cra 9 #24-20, Las Nieves, Tunja\n"
@@ -727,7 +756,7 @@ def webhook():
                 if reply_id == "comprar":
                     enviar_botones_post_compra(numero)
                 elif reply_id == "estado":
-                    enviar_texto(numero, "📦 Por favor escribe *estado* seguido de tu número de pedido.\n\nEjemplo: *estado CHC-0802-1234*")
+                    enviar_texto(numero, "📦 Escribe tu *número de pedido* (6 dígitos).\n\nEjemplo: *123456*")
                 elif reply_id == "asesor":
                     enviar_texto(numero, "🗣️ Un asesor se pondrá en contacto contigo pronto.")
                 elif reply_id == "ver_categorias":
@@ -796,9 +825,14 @@ def webhook():
                 enviar_lista_categorias(numero)
                 return "ok", 200
 
-            # 3. Consultar estado de pedido
+            # 3. Consultar estado de pedido (solo número de 6 dígitos)
+            elif texto.isdigit() and len(texto) == 6:
+                consultar_estado_pedido(numero, texto)
+                return "ok", 200
+            
+            # 3b. Consultar con "estado" + número
             elif texto.startswith("estado "):
-                numero_pedido = texto.replace("estado ", "").strip().upper()
+                numero_pedido = texto.replace("estado ", "").strip()
                 consultar_estado_pedido(numero, numero_pedido)
                 return "ok", 200
 
