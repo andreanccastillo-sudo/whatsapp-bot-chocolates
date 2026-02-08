@@ -255,9 +255,13 @@ def enviar_productos_categoria(numero, categoria_id):
     cat_nombre = cat_info["nombre"]
     cat_url = cat_info["url"]
     
-    # Guardar categoría actual
+    # Guardar categoría actual y limpiar estados anteriores
     carritos.setdefault(numero, {})
     carritos[numero]["categoria_actual"] = categoria_id
+    if "esperando" in carritos[numero]:
+        del carritos[numero]["esperando"]
+    if "esperando_producto" in carritos[numero]:
+        del carritos[numero]["esperando_producto"]
     
     mensaje = f"{cat_nombre}\n\n"
     mensaje += f"🔗 *Mira los productos aquí:*\n{cat_url}"
@@ -302,7 +306,11 @@ def enviar_lista_productos_para_pedir(numero):
     cat_info = CATEGORIAS.get(categoria_id, {"nombre": "Productos", "url": ""})
     cat_nombre = cat_info["nombre"]
     
-    # Guardar lista de productos para referencia por número
+    # Limpiar estados anteriores y guardar lista de productos
+    if "esperando" in carritos[numero]:
+        del carritos[numero]["esperando"]
+    if "esperando_producto" in carritos[numero]:
+        del carritos[numero]["esperando_producto"]
     carritos[numero]["productos_lista"] = list(productos_cat.keys())
     
     mensaje = f"📝 *{cat_nombre} - Lista de productos:*\n\n"
@@ -891,6 +899,9 @@ def webhook():
 
             # 1. Saludo / menú
             if texto in ["menu", "hola", "inicio"]:
+                # Limpiar carrito y estados anteriores
+                if numero in carritos:
+                    del carritos[numero]
                 enviar_mensaje_con_botones(numero)
                 return "ok", 200
 
