@@ -3,8 +3,17 @@ import requests
 import os
 from dotenv import load_dotenv
 import json
+import random
+import datetime
+from pymongo import MongoClient
 
 load_dotenv()
+
+# Conexión a MongoDB Atlas
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client["chocolates_bot"]
+pedidos_collection = db["pedidos"]
 
 app = Flask(__name__)
 
@@ -442,11 +451,38 @@ def enviar_datos_pago(numero, metodo):
     enviar_texto(numero, mensaje)
     carritos[numero]["esperando"] = "comprobante"
 
+def generar_numero_pedido():
+    fecha = datetime.datetime.now().strftime("%d%m")
+    aleatorio = random.randint(1000, 9999)
+    return f"CHC-{fecha}-{aleatorio}"
+
 def procesar_comprobante(numero):
     carrito = carritos.get(numero, {})
     tipo_entrega = carrito.get("tipo_entrega", "domicilio")
     
+    # Generar número de pedido
+    numero_pedido = generar_numero_pedido()
+    
+    # Guardar pedido en MongoDB
+    pedido_data = {
+        "numero_pedido": numero_pedido,
+        "cliente": carrito.get("nombre", ""),
+        "telefono": carrito.get("telefono", ""),
+        "direccion": carrito.get("direccion", ""),
+        "tipo_entrega": tipo_entrega,
+        "items": carrito.get("items", []),
+        "subtotal": carrito.get("subtotal", 0),
+        "costo_envio": carrito.get("costo_envio", 0),
+        "total": carrito.get("subtotal", 0) + carrito.get("costo_envio", 0),
+        "estado": "Pago recibido - En preparación",
+        "fecha": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "wa_id": numero
+    }
+    pedidos_collection.insert_one(pedido_data)
+    
     mensaje = "✅ *¡PEDIDO CONFIRMADO!*\n\n"
+    mensaje += f"🔖 *Número de pedido:* {numero_pedido}\n"
+    mensaje += "_(Guarda este número para seguimiento)_\n\n"
     mensaje += "Hemos recibido tu comprobante de pago.\n\n"
     
     if tipo_entrega == "domicilio":
@@ -459,6 +495,8 @@ def procesar_comprobante(numero):
     
     mensaje += "Te contactaremos al número:\n"
     mensaje += f"📱 {carrito.get('telefono', '')}\n\n"
+    mensaje += "📍 *Para consultar tu pedido* escribe:\n"
+    mensaje += f"*estado {numero_pedido}*\n\n"
     mensaje += "¡Gracias por tu compra! 🍫\n"
     mensaje += "_Chocolates del Castillo_"
     
@@ -467,6 +505,29 @@ def procesar_comprobante(numero):
     # Limpiar carrito
     if numero in carritos:
         del carritos[numero]
+
+def consultar_estado_pedido(numero, numero_pedido):
+    pedido = pedidos_collection.find_one({"numero_pedido": numero_pedido.upper()})
+    
+    if not pedido:
+        enviar_texto(numero, f"❌ No encontramos el pedido *{numero_pedido}*\n\nVerifica el número e intenta de nuevo.")
+        return
+    
+    mensaje = f"📋 *ESTADO DEL PEDIDO*\n"
+    mensaje += "━━━━━━━━━━━━━━━━━━━━\n\n"
+    mensaje += f"🔖 *Pedido:* {pedido['numero_pedido']}\n"
+    mensaje += f"📅 *Fecha:* {pedido['fecha']}\n"
+    mensaje += f"👤 *Cliente:* {pedido['cliente']}\n\n"
+    mensaje += f"📦 *Estado:* {pedido['estado']}\n\n"
+    
+    if pedido['tipo_entrega'] == "domicilio":
+        mensaje += f"🚚 *Envío a:* {pedido['direccion']}\n"
+    else:
+        mensaje += "🏪 *Recoger en:* Cra 9 #24-20, Las Nieves, Tunja\n"
+    
+    mensaje += f"\n💰 *Total:* ${pedido['total']:,.0f}"
+    
+    enviar_texto(numero, mensaje)
 
 
 
@@ -506,7 +567,7 @@ def webhook():
                 if reply_id == "comprar":
                     enviar_botones_post_compra(numero)
                 elif reply_id == "estado":
-                    enviar_texto(numero, "📦 Por favor escribinos tu número de pedido y lo consultamos.")
+                    enviar_texto(numero, "📦 Por favor escribe *estado* seguido de tu número de pedido.\n\nEjemplo: *estado CHC-0802-1234*")
                 elif reply_id == "asesor":
                     enviar_texto(numero, "🗣️ Un asesor se pondrá en contacto contigo pronto.")
                 elif reply_id == "ver_categorias":
@@ -553,7 +614,13 @@ def webhook():
                 enviar_lista_categorias(numero)
                 return "ok", 200
 
-            # 3. Ver carrito
+            # 3. Consultar estado de pedido
+            elif texto.startswith("estado "):
+                numero_pedido = texto.replace("estado ", "").strip().upper()
+                consultar_estado_pedido(numero, numero_pedido)
+                return "ok", 200
+
+            # 4. Ver carrito
             elif texto == "ver carrito":
                 mostrar_carrito(numero)
                 return "ok", 200
