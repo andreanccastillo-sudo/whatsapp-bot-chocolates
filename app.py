@@ -35,15 +35,15 @@ TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
 API_URL = f"https://graph.facebook.com/v21.0/{PHONE_NUMBER_ID}/messages"
 
-# Categorías de productos
+# Categorías de productos con links
 CATEGORIAS = {
-    "fruchetas": "🍓 Fruchetas",
-    "para_ellas": "🎀 Para Ellas",
-    "para_ellos": "🎁 Para Ellos",
-    "chocobombs": "🍫 Choco Bombs",
-    "desayunos": "☕ Desayunos",
-    "fresas_flores": "💐 Fresas y Flores",
-    "navidad": "🎄 Navidad",
+    "fruchetas": {"nombre": "🍓 Fruchetas", "url": "https://www.chocolatesdelcastillo.com/fruchetas"},
+    "para_ellas": {"nombre": "🎀 Para Ellas", "url": "https://www.chocolatesdelcastillo.com/paraellas"},
+    "para_ellos": {"nombre": "🎁 Para Ellos", "url": "https://www.chocolatesdelcastillo.com/paraellos"},
+    "chocobombs": {"nombre": "🍫 Choco Bombs", "url": "https://www.chocolatesdelcastillo.com/chocobombs"},
+    "desayunos": {"nombre": "☕ Desayunos", "url": "https://www.chocolatesdelcastillo.com/desayunos"},
+    "fresas_flores": {"nombre": "💐 Fresas y Flores", "url": "https://www.chocolatesdelcastillo.com/fresasyflores"},
+    "navidad": {"nombre": "🎄 Navidad", "url": "https://www.chocolatesdelcastillo.com/navidad"},
 }
 
 # Productos organizados por categoría
@@ -196,8 +196,8 @@ def enviar_lista_categorias(numero):
     sections = [{
         "title": "Categorías",
         "rows": [
-            {"id": f"cat_{cat_id}", "title": cat_nombre[:24]}
-            for cat_id, cat_nombre in CATEGORIAS.items()
+            {"id": f"cat_{cat_id}", "title": cat_info["nombre"][:24]}
+            for cat_id, cat_info in CATEGORIAS.items()
         ]
     }]
     data = {
@@ -222,10 +222,15 @@ def enviar_productos_categoria(numero, categoria_id):
         enviar_texto(numero, "No hay productos en esta categoría.")
         return
     
-    cat_nombre = CATEGORIAS.get(categoria_id, "Productos")
+    cat_info = CATEGORIAS.get(categoria_id, {"nombre": "Productos", "url": ""})
+    cat_nombre = cat_info["nombre"]
+    cat_url = cat_info["url"]
+    
     mensaje = f"{cat_nombre}\n\n"
+    mensaje += f"🔗 *Ver detalle de productos:*\n{cat_url}\n\n"
+    mensaje += "📝 *Indícanos cuál quieres adquirir:*\n\n"
+    
     for pid, info in productos_cat.items():
-        # Mostrar nombre legible sin guion bajo
         codigo_legible = pid.replace("_", " ")
         mensaje += f"• {info['nombre']} - ${info['precio']:,}\n  → escribe: *{codigo_legible}*\n\n"
     mensaje += "📦 Escribí *ver carrito* para ver tu pedido\n📋 Escribí *categorias* para volver al menú"
