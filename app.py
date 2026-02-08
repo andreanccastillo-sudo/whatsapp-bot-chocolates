@@ -12,12 +12,22 @@ load_dotenv()
 # Conexión a MongoDB Atlas
 import certifi
 MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
-db = client["chocolates_bot"]
-pedidos_collection = db["pedidos"]
 
 # Almacenamiento temporal en memoria (backup)
 pedidos_memoria = {}
+
+# Intentar conectar a MongoDB
+try:
+    client = MongoClient(MONGO_URI, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=5000)
+    client.admin.command('ping')
+    db = client["chocolates_bot"]
+    pedidos_collection = db["pedidos"]
+    MONGO_DISPONIBLE = True
+    print("MongoDB conectado exitosamente")
+except Exception as e:
+    print(f"MongoDB no disponible, usando memoria: {e}")
+    MONGO_DISPONIBLE = False
+    pedidos_collection = None
 
 app = Flask(__name__)
 
@@ -551,12 +561,16 @@ def procesar_comprobante(numero):
         "fecha": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         "wa_id": numero
     }
-    try:
-        pedidos_collection.insert_one(pedido_data)
-        print(f"Pedido guardado en MongoDB: {numero_pedido}")
-    except Exception as e:
-        print(f"Error MongoDB, guardando en memoria: {e}")
+    if MONGO_DISPONIBLE:
+        try:
+            pedidos_collection.insert_one(pedido_data)
+            print(f"Pedido guardado en MongoDB: {numero_pedido}")
+        except Exception as e:
+            print(f"Error MongoDB, guardando en memoria: {e}")
+            pedidos_memoria[numero_pedido] = pedido_data
+    else:
         pedidos_memoria[numero_pedido] = pedido_data
+        print(f"Pedido guardado en memoria: {numero_pedido}")
     
     mensaje = "✅ *¡PEDIDO CONFIRMADO!*\n\n"
     mensaje += f"🔖 *Número de pedido:* {numero_pedido}\n"
@@ -585,10 +599,14 @@ def procesar_comprobante(numero):
         del carritos[numero]
 
 def consultar_estado_pedido(numero, numero_pedido):
-    try:
-        pedido = pedidos_collection.find_one({"numero_pedido": numero_pedido.upper()})
-    except Exception as e:
-        print(f"Error MongoDB consulta: {e}")
+    pedido = None
+    if MONGO_DISPONIBLE:
+        try:
+            pedido = pedidos_collection.find_one({"numero_pedido": numero_pedido.upper()})
+        except Exception as e:
+            print(f"Error MongoDB consulta: {e}")
+    
+    if not pedido:
         pedido = pedidos_memoria.get(numero_pedido.upper())
     
     if not pedido:
