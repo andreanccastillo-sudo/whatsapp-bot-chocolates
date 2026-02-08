@@ -692,24 +692,23 @@ def procesar_comprobante(numero):
         pedidos_memoria[numero_pedido] = pedido_data
         print(f"Pedido guardado en memoria: {numero_pedido}")
     
-    mensaje = "✅ *¡PEDIDO CONFIRMADO!*\n\n"
+    mensaje = "✅ *¡COMPROBANTE RECIBIDO!*\n\n"
     mensaje += f"🔖 *Número de pedido:* {numero_pedido}\n"
     mensaje += "_(Guarda este número para seguimiento)_\n\n"
-    mensaje += "Hemos recibido tu comprobante de pago.\n\n"
+    mensaje += "Hemos recibido tu comprobante de pago y estamos verificándolo.\n\n"
     
     if tipo_entrega == "domicilio":
-        mensaje += "📦 Tu pedido será preparado y enviado a:\n"
+        mensaje += "📦 *Datos de envío:*\n"
         mensaje += f"📍 {carrito.get('direccion', '')}\n\n"
     else:
-        mensaje += "📦 Tu pedido será preparado para recoger en:\n"
+        mensaje += "📦 *Recoger en tienda:*\n"
         mensaje += "🏪 Cra 9 #24-20, Las Nieves, Tunja\n"
         mensaje += "⏰ Te avisaremos cuando esté listo\n\n"
     
-    mensaje += "Te contactaremos al número:\n"
-    mensaje += f"📱 {carrito.get('telefono', '')}\n\n"
+    mensaje += f"📱 *Teléfono:* {carrito.get('telefono', '')}\n\n"
     mensaje += "📍 *Para consultar tu pedido* escribe:\n"
     mensaje += f"*{numero_pedido}*\n\n"
-    mensaje += "¡Gracias por tu compra! 🍫\n"
+    mensaje += "¡Gracias por tu preferencia! 🍫\n"
     mensaje += "_Chocolates del Castillo_"
     
     enviar_texto(numero, mensaje)
