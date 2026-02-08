@@ -472,6 +472,7 @@ def enviar_datos_pago(numero, metodo):
     carrito = carritos[numero]
     costo_envio = carrito.get("costo_envio", 0)
     total = carrito.get("subtotal", 0) + costo_envio
+    print(f"enviar_datos_pago - Carrito antes: {carritos.get(numero, {})}")
     
     datos_pago = {
         "pago_bancolombia": {
@@ -521,6 +522,7 @@ def enviar_datos_pago(numero, metodo):
     
     enviar_texto(numero, mensaje)
     carritos[numero]["esperando"] = "comprobante"
+    print(f"enviar_datos_pago - Carrito despues: {carritos.get(numero, {})}")
 
 def generar_numero_pedido():
     fecha = datetime.datetime.now().strftime("%d%m")
