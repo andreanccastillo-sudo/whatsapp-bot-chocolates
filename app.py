@@ -17,8 +17,11 @@ MONGO_URI = os.getenv("MONGO_URI")
 pedidos_memoria = {}
 
 # Intentar conectar a MongoDB
+MONGO_DISPONIBLE = False
+pedidos_collection = None
+
 try:
-    client = MongoClient(MONGO_URI, tlsCAFile=certifi.where(), serverSelectionTimeoutMS=5000)
+    client = MongoClient(MONGO_URI, tlsCAFile=certifi.where())
     client.admin.command('ping')
     db = client["chocolates_bot"]
     pedidos_collection = db["pedidos"]
@@ -26,8 +29,6 @@ try:
     print("MongoDB conectado exitosamente")
 except Exception as e:
     print(f"MongoDB no disponible, usando memoria: {e}")
-    MONGO_DISPONIBLE = False
-    pedidos_collection = None
 
 app = Flask(__name__)
 
