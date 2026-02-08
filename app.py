@@ -652,12 +652,14 @@ def procesar_comprobante(numero):
 
 def consultar_estado_pedido(numero, numero_pedido):
     pedido = None
+    print(f"Consultando pedido: {numero_pedido.upper()}, DB_DISPONIBLE: {DB_DISPONIBLE}")
     if DB_DISPONIBLE:
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             cur.execute('SELECT * FROM pedidos WHERE numero_pedido = %s', (numero_pedido.upper(),))
             pedido = cur.fetchone()
+            print(f"Resultado DB: {pedido}")
             cur.close()
             conn.close()
         except Exception as e:
@@ -665,6 +667,7 @@ def consultar_estado_pedido(numero, numero_pedido):
     
     if not pedido:
         pedido = pedidos_memoria.get(numero_pedido.upper())
+        print(f"Resultado memoria: {pedido}")
     
     if not pedido:
         enviar_texto(numero, f"❌ No encontramos el pedido *{numero_pedido}*\n\nVerifica el número e intenta de nuevo.")
