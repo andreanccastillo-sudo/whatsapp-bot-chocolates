@@ -10,7 +10,7 @@ app = Flask(__name__)
 
 TOKEN = os.getenv("WHATSAPP_TOKEN")
 PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
-API_URL = f"https://graph.facebook.com/v19.0/{PHONE_NUMBER_ID}/messages"
+API_URL = f"https://graph.facebook.com/v21.0/{PHONE_NUMBER_ID}/messages"
 
 # Categorías de productos
 CATEGORIAS = {
