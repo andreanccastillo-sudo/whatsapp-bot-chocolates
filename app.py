@@ -880,7 +880,8 @@ def webhook():
                     del carritos[numero]["esperando"]
                     mostrar_resumen_final(numero)
                 elif esperando == "comprobante":
-                    procesar_comprobante(numero)
+                    enviar_texto(numero, "📸 Por favor envía una *imagen* o *foto* del comprobante de pago.\n\n_No podemos procesar texto, necesitamos ver el comprobante._")
+                    return "ok", 200
                 
                 return "ok", 200
 
