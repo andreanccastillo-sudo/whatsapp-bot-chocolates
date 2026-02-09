@@ -358,7 +358,7 @@ def agregar_al_carrito(numero, cantidad):
         enviar_texto(numero, "No se encontró el producto seleccionado.")
         return
     producto = PRODUCTOS[producto_id]
-    pedido = {"producto": producto["nombre"], "precio": producto["precio"], "cantidad": cantidad}
+    pedido = {"nombre": producto["nombre"], "precio": producto["precio"], "cantidad": cantidad}
     carritos[numero].setdefault("items", []).append(pedido)
     del carritos[numero]["esperando_producto"]
     enviar_texto(numero, f"✅ Se agregaron {cantidad} x {producto['nombre']} al carrito.")
