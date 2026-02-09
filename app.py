@@ -663,7 +663,7 @@ def procesar_comprobante(numero):
         "subtotal": carrito.get("subtotal", 0),
         "costo_envio": carrito.get("costo_envio", 0),
         "total": carrito.get("subtotal", 0) + carrito.get("costo_envio", 0),
-        "estado": "Pago recibido - En preparación",
+        "estado": "Comprobante recibido",
         "fecha": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         "wa_id": numero
     }
